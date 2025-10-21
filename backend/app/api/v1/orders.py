@@ -36,6 +36,11 @@ async def get_orders_at_risk(service: OrderService = Depends(get_order_service))
     """Órdenes en riesgo (cerca del límite) - PREVENTIVO"""
     return service.get_orders_at_risk()
 
+@router.get("/to-ship", response_model=List[dict])
+async def get_orders_to_ship(service: OrderService = Depends(get_order_service)):
+    """Órdenes por enviar - Vista unificada con todas las pendientes"""
+    return service.get_orders_to_ship()
+
 @router.get("/{order_id}")
 async def get_order(
     order_id: UUID,
@@ -46,3 +51,4 @@ async def get_order(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     return order
+

@@ -99,3 +99,12 @@ class OrderService:
         except Exception as e:
             logger.error(f"Error: {e}")
             return []
+    
+    def get_orders_to_ship(self) -> List[Dict]:
+        """Órdenes por enviar (todas las pendientes)"""
+        try:
+            result = self.db.table('orders_to_ship').select('*').execute()
+            return result.data or []
+        except Exception as e:
+            logger.error(f"Error: {e}")
+            return []
