@@ -108,3 +108,14 @@ class OrderService:
         except Exception as e:
             logger.error(f"Error: {e}")
             return []
+        
+    def get_delivered_orders(self) -> List[Dict]:
+        """Órdenes entregadas"""
+        try:
+            result = self.db.table('orders').select('*').eq(
+                'current_status', 'entregado'
+            ).order('updated_at', desc=True).limit(100).execute()
+            return result.data or []
+        except Exception as e:
+            logger.error(f"Error: {e}")
+            return []

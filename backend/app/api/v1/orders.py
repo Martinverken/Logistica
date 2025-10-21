@@ -52,3 +52,9 @@ async def get_order(
         raise HTTPException(status_code=404, detail="Order not found")
     return order
 
+@router.get("/delivered", response_model=List[dict])
+async def get_delivered_orders(service: OrderService = Depends(get_order_service)):
+    """Órdenes entregadas"""
+    return service.get_delivered_orders()
+
+
