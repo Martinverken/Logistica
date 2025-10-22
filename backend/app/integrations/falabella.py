@@ -1,4 +1,5 @@
 import requests
+import hashlib
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 from .base import BasePlatformIntegration
@@ -13,6 +14,22 @@ class FalabellaIntegration(BasePlatformIntegration):
         self.user_id = user_id
         self.base_url = base_url
     
+    def _generate_signature(self, params: dict) -> str:
+        """Genera la firma según la documentación de Falabella"""
+        # Crear string para firmar: concatenar Action, Format, Timestamp, UserID, Version, API_Key
+        to_sign = ''.join([
+            params.get('Action', ''),
+            params.get('Format', ''),
+            params.get('Timestamp', ''),
+            params.get('UserID', ''),
+            params.get('Version', ''),
+            self.api_key
+        ])
+        
+        # Generar SHA256
+        signature = hashlib.sha256(to_sign.encode('utf-8')).hexdigest()
+        return signature
+    
     def fetch_orders(
         self, 
         created_after: Optional[str] = None,
@@ -21,18 +38,23 @@ class FalabellaIntegration(BasePlatformIntegration):
         only_pending: bool = True
     ) -> List[Dict]:
         """Obtiene órdenes de Falabella"""
+        timestamp = datetime.utcnow().isoformat() + 'Z'
+        
         params = {
             'UserID': self.user_id,
             'Version': '1.0',
             'Action': 'GetOrders',
             'Format': 'JSON',
-            'Timestamp': datetime.utcnow().isoformat() + 'Z',
-            'Limit': limit,
-            'Offset': offset,
-            'Signature': self.api_key
+            'Timestamp': timestamp,
+            'Limit': str(limit),
+            'Offset': str(offset)
         }
         
-        # FILTRO: Solo órdenes pendientes por defecto
+        # Generar firma ANTES de agregar otros parámetros opcionales
+        signature = self._generate_signature(params)
+        params['Signature'] = signature
+        
+        # Agregar filtros opcionales DESPUÉS de la firma
         if only_pending:
             params['Status'] = 'ready_to_ship'
         
@@ -40,11 +62,16 @@ class FalabellaIntegration(BasePlatformIntegration):
             params['CreatedAfter'] = created_after
         
         try:
+            self.logger.info(f"Requesting Falabella orders with params: {params}")
+            
             response = requests.get(
-                f"{self.base_url}/orders",
+                f"{self.base_url}",
                 params=params,
                 timeout=30
             )
+            
+            self.logger.info(f"Falabella response status: {response.status_code}")
+            
             response.raise_for_status()
             data = response.json()
             
@@ -55,6 +82,10 @@ class FalabellaIntegration(BasePlatformIntegration):
             self.logger.info(f"Fetched {len(orders)} orders from Falabella")
             return orders
             
+        except requests.exceptions.HTTPError as e:
+            self.logger.error(f"HTTP Error from Falabella: {e}")
+            self.logger.error(f"Response content: {e.response.text if hasattr(e, 'response') else 'No response'}")
+            return []
         except Exception as e:
             self.logger.error(f"Error fetching Falabella orders: {e}")
             return []
