@@ -13,41 +13,50 @@ class FalabellaIntegration(BasePlatformIntegration):
         self.user_id = user_id
         self.base_url = base_url
     
-    def fetch_orders(self, offset: int = 0, limit: int = 50, only_pending: bool = True) -> List[Dict]:
-        """Obtiene órdenes de MercadoLibre"""
+    def fetch_orders(
+        self, 
+        created_after: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
+        only_pending: bool = True
+    ) -> List[Dict]:
+        """Obtiene órdenes de Falabella"""
+        params = {
+            'UserID': self.user_id,
+            'Version': '1.0',
+            'Action': 'GetOrders',
+            'Format': 'JSON',
+            'Timestamp': datetime.utcnow().isoformat() + 'Z',
+            'Limit': limit,
+            'Offset': offset,
+            'Signature': self.api_key
+        }
+        
+        # FILTRO: Solo órdenes pendientes por defecto
+        if only_pending:
+            params['Status'] = 'ready_to_ship'
+        
+        if created_after:
+            params['CreatedAfter'] = created_after
+        
         try:
-            url = f"{self.base_url}/orders/search"
-            params = {
-                'seller': self.user_id,
-                'offset': offset,
-                'limit': limit,
-                'sort': 'date_desc'
-            }
-            
-            # FILTRO: Solo órdenes pendientes por defecto
-            if only_pending:
-                params['shipping.status'] = 'ready_to_ship'
-            
-            response = requests.get(url, headers=self.headers, params=params, timeout=30)
+            response = requests.get(
+                f"{self.base_url}/orders",
+                params=params,
+                timeout=30
+            )
             response.raise_for_status()
             data = response.json()
             
-            orders = data.get('results', [])
+            orders = data.get('Body', {}).get('Orders', {}).get('Order', [])
+            if isinstance(orders, dict):
+                orders = [orders]
             
-            # Enriquecer con shipments
-            enriched_orders = []
-            for order in orders:
-                shipment_id = order.get('shipping', {}).get('id')
-                if shipment_id:
-                    shipment_data = self._get_shipment(shipment_id)
-                    order['shipment_data'] = shipment_data
-                enriched_orders.append(order)
-            
-            self.logger.info(f"Fetched {len(enriched_orders)} orders from MercadoLibre")
-            return enriched_orders
+            self.logger.info(f"Fetched {len(orders)} orders from Falabella")
+            return orders
             
         except Exception as e:
-            self.logger.error(f"Error fetching ML orders: {e}")
+            self.logger.error(f"Error fetching Falabella orders: {e}")
             return []
     
     def map_to_standard_order(self, raw_order: Dict) -> Dict:
