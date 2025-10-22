@@ -17,7 +17,7 @@ class MercadoLibreIntegration(BasePlatformIntegration):
             'x-format-new': 'true'
         }
     
-    def fetch_orders(self, offset: int = 0, limit: int = 50) -> List[Dict]:
+    def fetch_orders(self, offset: int = 0, limit: int = 50, only_pending: bool = True) -> List[Dict]:
         """Obtiene órdenes de MercadoLibre"""
         try:
             url = f"{self.base_url}/orders/search"
@@ -27,6 +27,10 @@ class MercadoLibreIntegration(BasePlatformIntegration):
                 'limit': limit,
                 'sort': 'date_desc'
             }
+            
+            # FILTRO: Solo órdenes pendientes por defecto
+            if only_pending:
+                params['shipping.status'] = 'ready_to_ship'
             
             response = requests.get(url, headers=self.headers, params=params, timeout=30)
             response.raise_for_status()
@@ -49,17 +53,17 @@ class MercadoLibreIntegration(BasePlatformIntegration):
         except Exception as e:
             self.logger.error(f"Error fetching ML orders: {e}")
             return []
-    
-    def _get_shipment(self, shipment_id: str) -> Optional[Dict]:
-        """Obtiene detalles del shipment"""
-        try:
-            url = f"{self.base_url}/shipments/{shipment_id}"
-            response = requests.get(url, headers=self.headers, timeout=15)
-            response.raise_for_status()
-            return response.json()
-        except:
-            return None
-    
+        
+        def _get_shipment(self, shipment_id: str) -> Optional[Dict]:
+            """Obtiene detalles del shipment"""
+            try:
+                url = f"{self.base_url}/shipments/{shipment_id}"
+                response = requests.get(url, headers=self.headers, timeout=15)
+                response.raise_for_status()
+                return response.json()
+            except:
+                return None
+        
     def map_to_standard_order(self, raw_order: Dict) -> Dict:
         """Mapea orden de MercadoLibre al formato estándar"""
         

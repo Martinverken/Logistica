@@ -22,10 +22,10 @@ class BasePlatformIntegration(ABC):
         """Mapea la orden de la plataforma al formato estándar"""
         pass
     
-    def get_orders_standardized(self, **kwargs) -> List[Dict]:
+    def get_orders_standardized(self, only_pending: bool = True, **kwargs) -> List[Dict]:
         """Obtiene y mapea órdenes al formato estándar"""
         try:
-            raw_orders = self.fetch_orders(**kwargs)
+            raw_orders = self.fetch_orders(only_pending=only_pending, **kwargs)
             standardized = [
                 self.map_to_standard_order(order) 
                 for order in raw_orders

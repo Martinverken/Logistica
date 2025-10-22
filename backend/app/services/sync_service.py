@@ -28,19 +28,20 @@ class SyncService:
             base_url=self.settings.MELI_BASE_URL
         )
     
-    def sync_all_platforms(self) -> Dict:
+    def sync_all_platforms(self, only_pending: bool = True) -> Dict:
         """Sincroniza todas las plataformas"""
         start_time = datetime.now()
         results = {
             'falabella': None,
             'mercadolibre': None,
             'total_synced': 0,
-            'errors': []
+            'errors': [],
+            'sync_type': 'pending_only' if only_pending else 'full'
         }
         
         # Falabella
         try:
-            fb_result = self.sync_falabella()
+            fb_result = self.sync_falabella(only_pending=only_pending)
             results['falabella'] = fb_result
             results['total_synced'] += fb_result.get('orders_synced', 0)
         except Exception as e:
@@ -49,7 +50,7 @@ class SyncService:
         
         # MercadoLibre
         try:
-            ml_result = self.sync_mercadolibre()
+            ml_result = self.sync_mercadolibre(only_pending=only_pending)
             results['mercadolibre'] = ml_result
             results['total_synced'] += ml_result.get('orders_synced', 0)
         except Exception as e:
@@ -59,13 +60,17 @@ class SyncService:
         execution_time = (datetime.now() - start_time).total_seconds() * 1000
         results['execution_time_ms'] = execution_time
         
-        logger.info(f"Sync completed: {results['total_synced']} orders in {execution_time}ms")
+        logger.info(f"Sync completed: {results['total_synced']} orders in {execution_time}ms (type: {results['sync_type']})")
         return results
     
-    def sync_falabella(self) -> Dict:
+    def sync_falabella(self, only_pending: bool = True) -> Dict:
         """Sincroniza Falabella"""
         created_after = (datetime.now() - timedelta(days=7)).isoformat()
-        orders = self.falabella.get_orders_standardized(created_after=created_after, limit=100)
+        orders = self.falabella.get_orders_standardized(
+            only_pending=only_pending,
+            created_after=created_after, 
+            limit=100
+        )
         
         synced = 0
         for order_data in orders:
@@ -79,12 +84,16 @@ class SyncService:
         return {
             'platform': 'falabella',
             'orders_synced': synced,
-            'orders_fetched': len(orders)
+            'orders_fetched': len(orders),
+            'only_pending': only_pending
         }
     
-    def sync_mercadolibre(self) -> Dict:
+    def sync_mercadolibre(self, only_pending: bool = True) -> Dict:
         """Sincroniza MercadoLibre"""
-        orders = self.mercadolibre.get_orders_standardized(limit=50)
+        orders = self.mercadolibre.get_orders_standardized(
+            only_pending=only_pending, 
+            limit=50
+        )
         
         synced = 0
         for order_data in orders:
@@ -98,5 +107,6 @@ class SyncService:
         return {
             'platform': 'mercadolibre',
             'orders_synced': synced,
-            'orders_fetched': len(orders)
+            'orders_fetched': len(orders),
+            'only_pending': only_pending
         }
